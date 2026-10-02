@@ -1,0 +1,206 @@
+<?php
+
+/*
+|--------------------------------------------------------------------------
+| Admin CRUD field specifications
+|--------------------------------------------------------------------------
+| Drives the generic admin index/form views for simple catalog & content
+| entities. Types: text, textarea, number, select, date, checkbox, media,
+| email, tags.
+*/
+
+return [
+    'vehicles' => [
+        'label' => 'Vehicle',
+        'fields' => [
+            'name' => ['label' => 'Vehicle Name', 'type' => 'text'],
+            'vehicle_type_id' => ['label' => 'Type', 'type' => 'select', 'options_from' => \App\Models\VehicleType::class],
+            'vendor_id' => ['label' => 'Vendor', 'type' => 'select', 'options_from' => \App\Models\CabVendor::class, 'nullable' => true],
+            'image' => ['label' => 'Image', 'type' => 'media'],
+            'passenger_capacity' => ['label' => 'Seats', 'type' => 'number'],
+            'luggage_capacity' => ['label' => 'Luggage Bags', 'type' => 'number'],
+            'base_price' => ['label' => 'Base Price (₹)', 'type' => 'number'],
+            'per_km_rate' => ['label' => 'Per KM Rate (₹)', 'type' => 'number'],
+            'per_hour_rate' => ['label' => 'Per Hour Rate (₹)', 'type' => 'number'],
+            'cancellation_policy' => ['label' => 'Cancellation Policy', 'type' => 'textarea'],
+            'is_ac' => ['label' => 'Air Conditioned', 'type' => 'checkbox'],
+            'is_featured' => ['label' => 'Featured', 'type' => 'checkbox'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['name', 'vehicle_type_id', 'passenger_capacity', 'base_price', 'status'],
+    ],
+    'vehicle_types' => [
+        'label' => 'Vehicle Type',
+        'fields' => [
+            'name' => ['label' => 'Name', 'type' => 'text'],
+            'description' => ['label' => 'Description', 'type' => 'textarea'],
+            'sort_order' => ['label' => 'Sort Order', 'type' => 'number'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['name', 'sort_order', 'status'],
+    ],
+    'vendors' => [
+        'label' => 'Cab Vendor',
+        'fields' => [
+            'name' => ['label' => 'Vendor Name', 'type' => 'text'],
+            'contact_person' => ['label' => 'Contact Person', 'type' => 'text'],
+            'phone' => ['label' => 'Phone', 'type' => 'text'],
+            'email' => ['label' => 'Email', 'type' => 'email'],
+            'commission_percent' => ['label' => 'Commission %', 'type' => 'number'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['name', 'contact_person', 'phone', 'commission_percent', 'status'],
+    ],
+    'cab_locations' => [
+        'label' => 'Cab Location',
+        'fields' => [
+            'name' => ['label' => 'Location Name', 'type' => 'text'],
+            'city' => ['label' => 'City', 'type' => 'text'],
+            'type' => ['label' => 'Type', 'type' => 'select', 'options' => ['airport' => 'Airport', 'local' => 'Local', 'outstation' => 'Outstation']],
+            'sort_order' => ['label' => 'Sort Order', 'type' => 'number'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['name', 'city', 'type', 'status'],
+    ],
+    'airports' => [
+        'label' => 'Airport',
+        'fields' => [
+            'code' => ['label' => 'IATA Code', 'type' => 'text'],
+            'name' => ['label' => 'Airport Name', 'type' => 'text'],
+            'city' => ['label' => 'City', 'type' => 'text'],
+            'country' => ['label' => 'Country', 'type' => 'text'],
+            'is_popular' => ['label' => 'Popular', 'type' => 'checkbox'],
+            'sort_order' => ['label' => 'Sort Order', 'type' => 'number'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['code', 'name', 'city', 'is_popular', 'status'],
+    ],
+    'airlines' => [
+        'label' => 'Airline',
+        'fields' => [
+            'code' => ['label' => 'IATA Code', 'type' => 'text'],
+            'name' => ['label' => 'Airline Name', 'type' => 'text'],
+            'default_baggage_kg' => ['label' => 'Default Baggage (Kg)', 'type' => 'number'],
+            'is_lcc' => ['label' => 'Low Cost Carrier', 'type' => 'checkbox'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['code', 'name', 'default_baggage_kg', 'is_lcc', 'status'],
+    ],
+    'coupons' => [
+        'label' => 'Coupon',
+        'fields' => [
+            'code' => ['label' => 'Coupon Code', 'type' => 'text'],
+            'description' => ['label' => 'Description', 'type' => 'text'],
+            'discount_type' => ['label' => 'Discount Type', 'type' => 'select', 'options' => ['percentage' => 'Percentage', 'fixed' => 'Fixed']],
+            'discount_value' => ['label' => 'Discount Value', 'type' => 'number'],
+            'product_types' => ['label' => 'Applicable Products', 'type' => 'multi', 'options' => ['flight' => 'Flight', 'hotel' => 'Hotel', 'cab' => 'Cab', 'package' => 'Package']],
+            'min_booking_amount' => ['label' => 'Min Booking Amount (₹)', 'type' => 'number'],
+            'max_discount' => ['label' => 'Max Discount Cap (₹)', 'type' => 'number'],
+            'usage_limit' => ['label' => 'Total Usage Limit', 'type' => 'number'],
+            'per_user_limit' => ['label' => 'Per-User Limit', 'type' => 'number'],
+            'first_booking_only' => ['label' => 'First Booking Only', 'type' => 'checkbox'],
+            'starts_at' => ['label' => 'Starts At', 'type' => 'date'],
+            'ends_at' => ['label' => 'Ends At', 'type' => 'date'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['code', 'discount_type', 'discount_value', 'used_count', 'ends_at', 'status'],
+    ],
+    'offers' => [
+        'label' => 'Offer',
+        'fields' => [
+            'title' => ['label' => 'Title', 'type' => 'text'],
+            'description' => ['label' => 'Description', 'type' => 'textarea'],
+            'image' => ['label' => 'Image', 'type' => 'media'],
+            'discount_text' => ['label' => 'Discount Text (e.g. 20% OFF)', 'type' => 'text'],
+            'badge' => ['label' => 'Badge', 'type' => 'text'],
+            'link_url' => ['label' => 'Link URL', 'type' => 'text'],
+            'button_text' => ['label' => 'Button Text', 'type' => 'text'],
+            'starts_at' => ['label' => 'Starts At', 'type' => 'date'],
+            'ends_at' => ['label' => 'Ends At', 'type' => 'date'],
+            'sort_order' => ['label' => 'Sort Order', 'type' => 'number'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['title', 'discount_text', 'ends_at', 'sort_order', 'status'],
+    ],
+    'banners' => [
+        'label' => 'Banner',
+        'fields' => [
+            'title' => ['label' => 'Title', 'type' => 'text'],
+            'subtitle' => ['label' => 'Subtitle', 'type' => 'text'],
+            'image' => ['label' => 'Image', 'type' => 'media'],
+            'link_url' => ['label' => 'Link URL', 'type' => 'text'],
+            'button_text' => ['label' => 'Button Text', 'type' => 'text'],
+            'position' => ['label' => 'Position', 'type' => 'select', 'options' => ['home' => 'Home', 'flights' => 'Flights', 'hotels' => 'Hotels', 'cabs' => 'Cabs', 'packages' => 'Packages', 'offers' => 'Offers']],
+            'sort_order' => ['label' => 'Sort Order', 'type' => 'number'],
+            'starts_at' => ['label' => 'Starts At', 'type' => 'date'],
+            'ends_at' => ['label' => 'Ends At', 'type' => 'date'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['title', 'position', 'sort_order', 'status'],
+    ],
+    'faqs' => [
+        'label' => 'FAQ',
+        'fields' => [
+            'question' => ['label' => 'Question', 'type' => 'text'],
+            'answer' => ['label' => 'Answer', 'type' => 'textarea'],
+            'category' => ['label' => 'Category', 'type' => 'text'],
+            'sort_order' => ['label' => 'Sort Order', 'type' => 'number'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['question', 'category', 'sort_order', 'status'],
+    ],
+    'testimonials' => [
+        'label' => 'Testimonial',
+        'fields' => [
+            'customer_name' => ['label' => 'Customer Name', 'type' => 'text'],
+            'customer_photo' => ['label' => 'Photo', 'type' => 'media'],
+            'city' => ['label' => 'City', 'type' => 'text'],
+            'destination' => ['label' => 'Destination Visited', 'type' => 'text'],
+            'rating' => ['label' => 'Rating (1-5)', 'type' => 'number'],
+            'content' => ['label' => 'Testimonial', 'type' => 'textarea'],
+            'is_featured' => ['label' => 'Featured', 'type' => 'checkbox'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['customer_name', 'city', 'rating', 'is_featured', 'status'],
+    ],
+    'blogs' => [
+        'label' => 'Blog Post',
+        'fields' => [
+            'title' => ['label' => 'Title', 'type' => 'text'],
+            'category' => ['label' => 'Category', 'type' => 'text'],
+            'excerpt' => ['label' => 'Excerpt', 'type' => 'textarea'],
+            'content' => ['label' => 'Content', 'type' => 'textarea', 'rows' => 12],
+            'cover_image' => ['label' => 'Cover Image', 'type' => 'media'],
+            'tags' => ['label' => 'Tags (comma separated)', 'type' => 'text'],
+            'published_at' => ['label' => 'Publish At', 'type' => 'date'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['draft' => 'Draft', 'published' => 'Published', 'scheduled' => 'Scheduled', 'archived' => 'Archived']],
+        ],
+        'columns' => ['title', 'category', 'views', 'status'],
+    ],
+    'guides' => [
+        'label' => 'Travel Guide',
+        'fields' => [
+            'title' => ['label' => 'Title', 'type' => 'text'],
+            'destination_id' => ['label' => 'Destination', 'type' => 'select', 'options_from' => \App\Models\Destination::class, 'nullable' => true],
+            'excerpt' => ['label' => 'Excerpt', 'type' => 'textarea'],
+            'content' => ['label' => 'Content', 'type' => 'textarea', 'rows' => 12],
+            'cover_image' => ['label' => 'Cover Image', 'type' => 'media'],
+            'sort_order' => ['label' => 'Sort Order', 'type' => 'number'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive']],
+        ],
+        'columns' => ['title', 'sort_order', 'status'],
+    ],
+    'pages' => [
+        'label' => 'Page',
+        'fields' => [
+            'title' => ['label' => 'Title', 'type' => 'text'],
+            'content' => ['label' => 'Content', 'type' => 'textarea', 'rows' => 14],
+            'template' => ['label' => 'Template', 'type' => 'select', 'options' => ['default' => 'Default', 'full_width' => 'Full Width', 'sidebar' => 'With Sidebar']],
+            'show_in_footer' => ['label' => 'Show in Footer', 'type' => 'checkbox'],
+            'sort_order' => ['label' => 'Sort Order', 'type' => 'number'],
+            'published_at' => ['label' => 'Publish At', 'type' => 'date'],
+            'status' => ['label' => 'Status', 'type' => 'select', 'options' => ['draft' => 'Draft', 'published' => 'Published']],
+        ],
+        'columns' => ['title', 'template', 'sort_order', 'status'],
+    ],
+];
