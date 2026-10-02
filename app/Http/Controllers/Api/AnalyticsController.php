@@ -4,10 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponse;
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessAnalyticsBatch;
 use App\Models\AnalyticsPageView;
 use App\Models\AnalyticsSession;
-use App\Services\AnalyticsService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -17,7 +18,8 @@ use Illuminate\Support\Facades\Schema;
  * GA4/Meta server-side (the browser tags handle client-side; the backend only
  * forwards its own server-authoritative conversions), so no duplication.
  *
- * PII is stripped before storage. Batches are supported to minimise requests.
+ * PII is stripped before storage. Batches are dispatched to a queue worker for
+ * async processing so this endpoint returns in <10 ms.
  */
 class AnalyticsController extends Controller
 {
@@ -31,11 +33,20 @@ class AnalyticsController extends Controller
         'ssn', 'token', 'access_token', 'secret',
     ];
 
-    /** Accept a single event or a batch: { events: [ {name, ...}, ... ] }. */
+    /** Cached result of the one-time table existence check. */
+    private static ?bool $tablesReady = null;
+
+    /**
+     * Accept a single event or a batch: { events: [ {name, ...}, ... ] }.
+     *
+     * Validates, scrubs PII, and dispatches a ProcessAnalyticsBatch job to the
+     * queue. No DB writes happen in this request cycle — the queue worker handles
+     * batch inserts, deduplication, and conversion forwarding asynchronously.
+     */
     public function event(Request $request)
     {
-        if (! config('services.analytics.backend_enabled', true) || ! Schema::hasTable('analytics_events')) {
-            return $this->ok(['stored' => 0]);
+        if (! config('services.analytics.backend_enabled', true) || ! $this->tablesExist()) {
+            return $this->ok(['queued' => 0]);
         }
 
         $events = $request->input('events');
@@ -44,38 +55,51 @@ class AnalyticsController extends Controller
         }
         $events = array_slice($events, 0, 25); // cap batch size
 
-        $stored = 0;
+        // Validate and scrub each event before queuing.
+        $cleaned = [];
         foreach ($events as $e) {
             if (! is_array($e) || empty($e['name']) || ! is_string($e['name'])) {
                 continue;
             }
-            $name = substr(preg_replace('/[^a-z0-9_]/i', '_', $e['name']), 0, 50);
 
+            $name = substr(preg_replace('/[^a-z0-9_]/i', '_', $e['name']), 0, 50);
             $params = $this->scrub((array) ($e['params'] ?? []));
 
-            AnalyticsService::track($name, array_filter([
-                'event_id' => isset($e['event_id']) ? substr((string) $e['event_id'], 0, 64) : null,
-                'session_id' => $this->sid($request, $e),
-                'anonymous_id' => isset($e['anonymous_id']) ? substr((string) $e['anonymous_id'], 0, 64) : null,
+            $cleaned[] = array_filter([
+                'name'         => $name,
+                'event_id'     => isset($e['event_id']) ? substr((string) $e['event_id'], 0, 64) : null,
                 'product_type' => isset($e['product_type']) ? substr((string) $e['product_type'], 0, 30) : null,
-                'product_id' => $e['product_id'] ?? null,
-                'value' => isset($e['value']) ? (float) $e['value'] : null,
-                'currency' => isset($e['currency']) ? substr((string) $e['currency'], 0, 3) : null,
-                'channel' => isset($e['channel']) ? substr((string) $e['channel'], 0, 30) : null,
-                'source' => 'client',
-                'forward' => false, // client tags handle browser-side; no server re-forward
-            ], fn ($v) => $v !== null) + $params);
-
-            $stored++;
+                'product_id'   => $e['product_id'] ?? null,
+                'value'        => isset($e['value']) ? (float) $e['value'] : null,
+                'currency'     => isset($e['currency']) ? substr((string) $e['currency'], 0, 3) : null,
+                'channel'      => isset($e['channel']) ? substr((string) $e['channel'], 0, 30) : null,
+                'params'       => $params ?: null,
+            ], fn ($v) => $v !== null);
         }
 
-        return $this->ok(['stored' => $stored]);
+        if (empty($cleaned)) {
+            return $this->ok(['queued' => 0]);
+        }
+
+        // Dispatch to queue — zero DB queries in this request cycle.
+        ProcessAnalyticsBatch::dispatch(
+            events: $cleaned,
+            sessionId: $this->sid($request),
+            anonymousId: $request->input('anonymous_id')
+                ? substr((string) $request->input('anonymous_id'), 0, 64)
+                : null,
+            ip: $request->ip(),
+            userAgent: substr((string) $request->userAgent(), 0, 255),
+            userId: auth('web')->id(),
+        );
+
+        return $this->ok(['queued' => count($cleaned)]);
     }
 
     /** Enrich the visitor's session row with client-only signals (screen, anon id). */
     public function session(Request $request)
     {
-        if (! config('services.analytics.backend_enabled', true) || ! Schema::hasTable('analytics_sessions')) {
+        if (! config('services.analytics.backend_enabled', true) || ! $this->tablesExist()) {
             return $this->ok();
         }
 
@@ -101,30 +125,42 @@ class AnalyticsController extends Controller
     /**
      * Record a page view, or patch an existing one with engagement metrics
      * (time_on_page / scroll_depth / is_exit) sent via sendBeacon on unload.
+     *
+     * Supports client-generated page_view_id for reliable engagement patching
+     * even when the user bounces before the initial page view response returns.
      */
     public function pageView(Request $request)
     {
-        if (! config('services.analytics.backend_enabled', true) || ! Schema::hasTable('analytics_page_views')) {
+        if (! config('services.analytics.backend_enabled', true) || ! $this->tablesExist()) {
             return $this->ok();
         }
 
         $sid = $this->sid($request);
 
         // Patch existing page view with engagement metrics.
-        if ($request->filled('id')) {
-            $pv = AnalyticsPageView::find((int) $request->input('id'));
-            if ($pv && $pv->session_id === $sid) {
-                $pv->update(array_filter([
-                    'time_on_page' => $request->filled('time_on_page') ? min(86400, (int) $request->input('time_on_page')) : null,
-                    'scroll_depth' => $request->filled('scroll_depth') ? max(0, min(100, (int) $request->input('scroll_depth'))) : null,
-                    'is_exit' => $request->boolean('is_exit') ?: null,
-                ], fn ($v) => $v !== null));
-            }
+        // Accept either server id or client-generated page_view_id.
+        $pvId = $request->input('id') ?? $request->input('page_view_id');
+        if ($pvId && $request->hasAny(['time_on_page', 'scroll_depth', 'is_exit'])) {
+            $query = is_numeric($pvId)
+                ? AnalyticsPageView::where('id', (int) $pvId)
+                : AnalyticsPageView::where('page_view_id', substr((string) $pvId, 0, 64));
 
-            return $this->ok(['id' => $request->input('id')]);
+            $query->where('session_id', $sid)->update(array_filter([
+                'time_on_page' => $request->filled('time_on_page') ? min(86400, (int) $request->input('time_on_page')) : null,
+                'scroll_depth' => $request->filled('scroll_depth') ? max(0, min(100, (int) $request->input('scroll_depth'))) : null,
+                'is_exit' => $request->boolean('is_exit') ?: null,
+            ], fn ($v) => $v !== null));
+
+            return $this->ok(['id' => $pvId]);
         }
 
+        // New page view — accept optional client-generated page_view_id.
+        $clientPvId = $request->filled('page_view_id')
+            ? substr((string) $request->input('page_view_id'), 0, 64)
+            : null;
+
         $pv = AnalyticsPageView::create([
+            'page_view_id' => $clientPvId,
             'session_id' => $sid,
             'anonymous_id' => $request->filled('anonymous_id') ? substr((string) $request->input('anonymous_id'), 0, 64) : null,
             'user_id' => auth('web')->id(),
@@ -137,14 +173,14 @@ class AnalyticsController extends Controller
         ]);
 
         // Bump the session page-view rollup (cheap, indexed).
-        if ($sid && Schema::hasTable('analytics_sessions')) {
+        if ($sid) {
             AnalyticsSession::where('session_id', $sid)->update([
-                'page_views' => \Illuminate\Support\Facades\DB::raw('page_views + 1'),
+                'page_views' => DB::raw('page_views + 1'),
                 'last_activity_at' => now(),
             ]);
         }
 
-        return $this->ok(['id' => $pv->id]);
+        return $this->ok(['id' => $pv->id, 'page_view_id' => $clientPvId]);
     }
 
     /** Resolve the analytics session id: explicit payload → lz_sid cookie. */
@@ -176,5 +212,21 @@ class AnalyticsController extends Controller
         }
 
         return $clean;
+    }
+
+    /**
+     * Check table existence once per PHP process lifetime.
+     *
+     * Previously called Schema::hasTable() on every request (4x SHOW TABLES
+     * queries per request). This caches the result in a static property so
+     * the check runs at most once per worker process.
+     */
+    private function tablesExist(): bool
+    {
+        return self::$tablesReady ??= (
+            Schema::hasTable('analytics_events') &&
+            Schema::hasTable('analytics_sessions') &&
+            Schema::hasTable('analytics_page_views')
+        );
     }
 }

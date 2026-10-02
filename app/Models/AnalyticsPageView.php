@@ -14,6 +14,7 @@ class AnalyticsPageView extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'page_view_id',
         'session_id',
         'anonymous_id',
         'user_id',

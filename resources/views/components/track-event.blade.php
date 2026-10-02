@@ -15,6 +15,7 @@
         var payload = @json($data);
         @if ($event)
         if (window.dataLayer) { window.dataLayer.push(Object.assign({ event: @json($event) }, payload)); }
+        if (window.analytics && window.analytics.track) { window.analytics.track(@json($event), payload); }
         @endif
         @if ($fb)
         if (window.fbq) { window.fbq('track', @json($fb), payload); }

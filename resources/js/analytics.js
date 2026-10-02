@@ -165,6 +165,8 @@
 
   function startBackend() {
     if (backendOn) return;
+    // Never track admin/agent panel pages — they pollute visitor analytics.
+    if (/^\/(admin|agent)(\/|$)/.test(window.location.pathname)) return;
     backendOn = true;
     flushQueuedOffline();
     schedulePageView();
@@ -215,7 +217,7 @@
 
   /* ------------------------------------------------------------- page + depth */
 
-  let pageViewId = null;
+  let pageViewId = uuid(); // client-generated: always available for sendEngagement, even on quick bounces
   let pageStart = Date.now();
   let maxScroll = 0;
 
@@ -227,17 +229,21 @@
       language: navigator.language,
     }), false);
 
-    // Record the page view; keep its id to patch engagement on unload.
+    // Record the page view with a client-generated page_view_id.
+    // The server uses this ID for the engagement patch (sendBeacon on unload),
+    // so we no longer depend on the server response — fixing the quick-bounce
+    // race condition where engagement data was lost.
     fetch(API + '/page-view', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify({
         session_id: sessionId(), anonymous_id: anonymousId,
+        page_view_id: pageViewId,
         url: window.location.href, path: window.location.pathname,
         title: document.title, referrer: document.referrer || '',
         device_type: deviceType(),
       }),
-    }).then((r) => r.ok ? r.json() : null).then((d) => { pageViewId = d && d.data ? d.data.id : null; }).catch(() => {});
+    }).catch(() => {});
   }
 
   function deviceType() {
@@ -247,22 +253,29 @@
     return 'desktop';
   }
 
+  let scrollTicking = false;
   function onScroll() {
-    const h = document.documentElement;
-    const denom = (h.scrollHeight - h.clientHeight) || 1;
-    const pct = Math.min(100, Math.round(((h.scrollTop || window.scrollY) / denom) * 100));
-    if (pct > maxScroll) maxScroll = pct;
+    if (!scrollTicking) {
+      scrollTicking = true;
+      requestAnimationFrame(() => {
+        const h = document.documentElement;
+        const denom = (h.scrollHeight - h.clientHeight) || 1;
+        const pct = Math.min(100, Math.round(((h.scrollTop || window.scrollY) / denom) * 100));
+        if (pct > maxScroll) maxScroll = pct;
+        scrollTicking = false;
+      });
+    }
   }
 
   function sendEngagement() {
     if (!backendOn) return;
     const seconds = Math.round((Date.now() - pageStart) / 1000);
     const body = JSON.stringify({
-      session_id: sessionId(), id: pageViewId,
+      session_id: sessionId(), page_view_id: pageViewId,
       time_on_page: seconds, scroll_depth: maxScroll, is_exit: true,
     });
     flush(true); // flush any pending events with beacon first
-    if (pageViewId) post(API + '/page-view', body, true);
+    post(API + '/page-view', body, true);
   }
 
   /* --------------------------------------------------------------- public API */
