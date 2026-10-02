@@ -1,7 +1,7 @@
 @props(['destination'])
 
 <a href="{{ route('destinations.show', $destination->slug) }}" class="dest-card">
-    <img src="{{ asset(img($destination->cover_image, 'images/destinations/' . $destination->slug . '.svg')) }}" alt="{{ $destination->name }}" loading="lazy">
+    <img src="{{ asset(img($destination->cover_image, 'images/destinations/' . $destination->slug . '.svg')) }}" alt="{{ $destination->name }}" loading="lazy" decoding="async" width="300" height="200">
     <span class="overlay"></span>
     <span class="absolute bottom-3 left-4 right-14 text-white">
         <span class="font-display block text-lg font-bold">{{ $destination->name }}</span>

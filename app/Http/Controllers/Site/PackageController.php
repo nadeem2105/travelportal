@@ -11,7 +11,7 @@ class PackageController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Package::with('destination')->where('status', 'active');
+        $query = Package::with(['destination', 'seasonalPrices'])->where('status', 'active');
 
         if ($q = trim((string) $request->query('q'))) {
             $query->where(fn ($w) => $w

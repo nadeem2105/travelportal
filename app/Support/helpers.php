@@ -47,15 +47,15 @@ if (! function_exists('img')) {
             return $path;
         }
 
-        if (str_starts_with($path, 'images/')) {
+        if (str_starts_with($path, 'images/') || str_starts_with($path, 'build/') || str_starts_with($path, 'assets/')) {
             return asset($path);
         }
 
-        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
-            return \Illuminate\Support\Facades\Storage::disk('public')->url($path);
+        if (str_starts_with($path, 'storage/')) {
+            return asset($path);
         }
 
-        return asset($fallback);
+        return asset('storage/' . ltrim($path, '/'));
     }
 }
 

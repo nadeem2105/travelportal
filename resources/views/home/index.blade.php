@@ -6,7 +6,7 @@
     {{-- HERO per approved design --}}
     <section class="hero">
         <div class="hero-media">
-            <img src="{{ asset(img($heroImage, 'images/hero.svg')) }}" alt="{{ settings('hero_alt', 'Kashmir valley with snow-capped mountains and Dal Lake') }}">
+            <img src="{{ asset(img($heroImage, 'images/hero.svg')) }}" alt="{{ settings('hero_alt', 'Kashmir valley with snow-capped mountains and Dal Lake') }}" fetchpriority="high" loading="eager" decoding="async" width="1920" height="1080">
         </div>
         <div class="hero-scrim"></div>
 

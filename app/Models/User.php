@@ -67,11 +67,22 @@ class User extends Authenticatable
         return $this->hasMany(SupportTicket::class)->latest();
     }
 
+    /**
+     * In-memory memoized map of type => array of wishlistable_ids for the current request.
+     */
+    protected array $wishlistIdCache = [];
+
+    public function wishlistIdsFor(string $type): array
+    {
+        return $this->wishlistIdCache[$type] ??= $this->wishlists()
+            ->where('wishlistable_type', $type)
+            ->pluck('wishlistable_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
     public function hasWishlist(string $type, int $id): bool
     {
-        return $this->wishlists()
-            ->where('wishlistable_type', $type)
-            ->where('wishlistable_id', $id)
-            ->exists();
+        return in_array((int) $id, $this->wishlistIdsFor($type), true);
     }
 }

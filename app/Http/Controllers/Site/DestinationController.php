@@ -34,7 +34,7 @@ class DestinationController extends Controller
                 'description' => $destination->short_description,
             ]),
             'destination' => $destination,
-            'packages' => $destination->packages()->where('status', 'active')->limit(6)->get(),
+            'packages' => $destination->packages()->with('seasonalPrices')->where('status', 'active')->limit(6)->get(),
             'hotels' => $destination->hotels()->where('status', 'active')->limit(6)->get(),
         ]);
     }

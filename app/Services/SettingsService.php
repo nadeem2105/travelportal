@@ -7,25 +7,37 @@ use Illuminate\Support\Facades\Cache;
 
 class SettingsService
 {
+    protected static ?array $memoizedSettings = null;
+
     /**
-     * Cached flat map of key => raw value.
+     * Cached flat map of key => ['value' => ..., 'type' => ...].
      */
     protected function all(): array
     {
-        return Cache::rememberForever(Setting::CACHE_KEY, function () {
-            return Setting::query()->pluck('value', 'key')->toArray();
+        if (self::$memoizedSettings !== null) {
+            return self::$memoizedSettings;
+        }
+
+        return self::$memoizedSettings = Cache::rememberForever(Setting::CACHE_KEY, function () {
+            return Setting::query()->get(['key', 'value', 'type'])->keyBy('key')->map(fn ($s) => [
+                'value' => $s->value,
+                'type' => $s->type ?? 'text',
+            ])->toArray();
         });
     }
 
     public function get(string $key, mixed $default = null): mixed
     {
-        $value = $this->all()[$key] ?? null;
+        $item = $this->all()[$key] ?? null;
 
-        if ($value === null || $value === '') {
+        if ($item === null || $item['value'] === null || $item['value'] === '') {
             return $default;
         }
 
-        return match (Setting::query()->where('key', $key)->value('type')) {
+        $value = $item['value'];
+        $type = $item['type'] ?? 'text';
+
+        return match ($type) {
             'boolean' => in_array($value, ['1', 'true', 'on', 'yes'], true),
             'number' => is_numeric($value) ? (str_contains((string) $value, '.') ? (float) $value : (int) $value) : $value,
             'json' => json_decode($value, true),
@@ -43,6 +55,8 @@ class SettingsService
                 'type' => $type,
             ]
         );
+
+        self::$memoizedSettings = null;
     }
 
     public function group(string $group): array

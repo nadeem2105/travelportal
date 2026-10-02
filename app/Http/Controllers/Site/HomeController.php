@@ -35,7 +35,7 @@ class HomeController extends Controller
                 ? Destination::where('status', 'active')->orderBy('sort_order')->limit(6)->get()
                 : collect(),
             'packages' => $needsPackages
-                ? Package::with('destination')->where('status', 'active')->orderByDesc('is_featured')->limit(4)->get()
+                ? Package::with(['destination', 'seasonalPrices'])->where('status', 'active')->orderByDesc('is_featured')->limit(4)->get()
                 : collect(),
             'hotels' => $needsHotels
                 ? Hotel::with('destination')->where('status', 'active')->orderByDesc('is_featured')->latest()->limit(6)->get()

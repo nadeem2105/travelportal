@@ -8,7 +8,7 @@
 
 <div class="pkg-card">
     <a href="{{ route('packages.show', $package->slug) }}" class="pkg-media">
-        <img src="{{ asset(img($package->cover_image, 'images/packages/' . $package->slug . '.svg')) }}" alt="{{ $package->name }}" loading="lazy">
+        <img src="{{ asset(img($package->cover_image, 'images/packages/' . $package->slug . '.svg')) }}" alt="{{ $package->name }}" loading="lazy" decoding="async" width="400" height="250">
         @if ($badge)
             <span class="pkg-badge {{ $badge['class'] }}">
                 @if ($badge['class'] === 'badge-best')

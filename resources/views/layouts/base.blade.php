@@ -27,10 +27,14 @@
 
     <link rel="icon" type="image/svg+xml" href="{{ asset(img(settings('company_favicon', 'images/favicon.svg'))) }}">
 
-    <!-- Fonts: Inter / Poppins / Dancing Script -->
+    <!-- Fonts: Inter / Poppins / Dancing Script (Non-render-blocking) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&family=Dancing+Script:wght@600;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&family=Dancing+Script:wght@600;700&display=swap" media="print" onload="this.media='all'">
+    <noscript>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&family=Dancing+Script:wght@600;700&display=swap">
+    </noscript>
 
     @php($lzAnalytics = (array) config('services.analytics'))
     @if(!empty($lzAnalytics['search_console_verification']))
