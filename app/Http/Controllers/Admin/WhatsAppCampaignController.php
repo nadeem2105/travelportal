@@ -100,6 +100,24 @@ class WhatsAppCampaignController extends Controller
         return back()->with('success', "Re-queued {$count} recipient(s) for delivery.");
     }
 
+    public function processPending(WhatsAppCampaign $whatsappCampaign)
+    {
+        $whatsapp = app(\App\Services\WhatsApp\WhatsAppService::class);
+        $campaigns = $this->campaigns;
+        $recipients = $whatsappCampaign->recipients()->where('status', 'pending')->take(50)->get();
+        $processed = 0;
+
+        foreach ($recipients as $recipient) {
+            $job = new \App\Jobs\SendWhatsAppCampaignMessage($recipient->id);
+            $job->handle($whatsapp, $campaigns);
+            $processed++;
+        }
+
+        $this->campaigns->refreshProgress($whatsappCampaign->fresh());
+
+        return back()->with('success', "Processed and sent {$processed} message(s) directly.");
+    }
+
     private function validated(Request $request): array
     {
         return $request->validate([

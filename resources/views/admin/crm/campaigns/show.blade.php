@@ -35,6 +35,10 @@
             </form>
         @endif
         @if ($c->status === 'sending')
+            <form action="{{ route('admin.whatsapp-campaigns.process-now', $c) }}" method="POST">
+                @csrf
+                <button class="btn-primary btn-sm bg-emerald-600 hover:bg-emerald-700 text-white" title="Send pending batch right now directly without waiting for worker">Process Batch Now (Direct)</button>
+            </form>
             <form action="{{ route('admin.whatsapp-campaigns.refresh', $c) }}" method="POST">
                 @csrf
                 <button class="btn-secondary btn-sm" title="Recheck recipient statuses and progress">Refresh Progress</button>

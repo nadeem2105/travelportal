@@ -63,7 +63,7 @@ class CampaignService
 
         $campaign->update(['status' => 'sending', 'started_at' => now(), 'scheduled_at' => null]);
 
-        $queueName = config('services.whatsapp.campaign_queue', 'whatsapp');
+        $queueName = config('services.whatsapp.campaign_queue', 'default');
         $delay = 0;
         $pendingCount = 0;
 
@@ -113,7 +113,7 @@ class CampaignService
 
         $campaign->update(['status' => 'sending', 'completed_at' => null]);
 
-        $queueName = config('services.whatsapp.campaign_queue', 'whatsapp');
+        $queueName = config('services.whatsapp.campaign_queue', 'default');
         $delay = 0;
 
         foreach ($recipients as $recipient) {
