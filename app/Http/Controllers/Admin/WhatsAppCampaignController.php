@@ -81,9 +81,23 @@ class WhatsAppCampaignController extends Controller
         if (in_array($whatsappCampaign->status, ['completed', 'cancelled'], true)) {
             return back()->with('error', 'Campaign cannot be cancelled.');
         }
-        $whatsappCampaign->update(['status' => 'cancelled']);
+        $this->campaigns->cancel($whatsappCampaign);
 
-        return back()->with('success', 'Campaign cancelled. Pending messages will not be sent.');
+        return back()->with('success', 'Campaign cancelled. Pending messages marked as skipped.');
+    }
+
+    public function refresh(WhatsAppCampaign $whatsappCampaign)
+    {
+        $this->campaigns->refreshProgress($whatsappCampaign);
+
+        return back()->with('success', 'Campaign progress refreshed.');
+    }
+
+    public function retry(WhatsAppCampaign $whatsappCampaign)
+    {
+        $count = $this->campaigns->retryPendingOrFailed($whatsappCampaign);
+
+        return back()->with('success', "Re-queued {$count} recipient(s) for delivery.");
     }
 
     private function validated(Request $request): array

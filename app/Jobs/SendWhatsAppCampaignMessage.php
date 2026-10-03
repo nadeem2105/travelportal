@@ -34,40 +34,61 @@ class SendWhatsAppCampaignMessage implements ShouldQueue
         }
 
         $campaign = $recipient->campaign;
-        if (! $campaign || $campaign->status === 'cancelled') {
+        if (! $campaign) {
             return;
         }
 
-        $result = $whatsapp->notifyTemplate(
-            $recipient->wa_id,
-            $campaign->template_name,
-            $campaign->template_language,
-            $campaign->template_params ?? [],
-            $recipient->contact?->name,
-        );
-
-        if ($result['success']) {
+        if ($campaign->status === 'cancelled') {
             $recipient->update([
-                'status' => 'sent',
-                'wa_message_id' => $result['wa_message_id'] ?? null,
-                'sent_at' => now(),
-                'error' => null,
+                'status' => 'skipped',
+                'error' => 'Campaign cancelled',
             ]);
-        } else {
-            $recipient->update([
-                'status' => 'failed',
-                'error' => $result['error'] ?? 'Send failed',
-            ]);
+            $campaigns->refreshProgress($campaign->fresh());
+            return;
         }
 
-        $campaigns->refreshProgress($campaign->fresh());
+        try {
+            $result = $whatsapp->notifyTemplate(
+                $recipient->wa_id,
+                $campaign->template_name,
+                $campaign->template_language,
+                $campaign->template_params ?? [],
+                $recipient->contact?->name,
+            );
+
+            if ($result['success'] ?? false) {
+                $recipient->update([
+                    'status' => 'sent',
+                    'wa_message_id' => $result['wa_message_id'] ?? null,
+                    'sent_at' => now(),
+                    'error' => null,
+                ]);
+            } else {
+                $recipient->update([
+                    'status' => 'failed',
+                    'error' => $result['error'] ?? 'Send failed',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            $recipient->update([
+                'status' => 'failed',
+                'error' => $e->getMessage(),
+            ]);
+        } finally {
+            $campaigns->refreshProgress($campaign->fresh());
+        }
     }
 
     public function failed(\Throwable $e): void
     {
-        $recipient = WhatsAppCampaignRecipient::find($this->recipientId);
-        if ($recipient && $recipient->status === 'pending') {
-            $recipient->update(['status' => 'failed', 'error' => $e->getMessage()]);
+        $recipient = WhatsAppCampaignRecipient::with('campaign')->find($this->recipientId);
+        if ($recipient) {
+            if ($recipient->status === 'pending') {
+                $recipient->update(['status' => 'failed', 'error' => $e->getMessage()]);
+            }
+            if ($recipient->campaign) {
+                app(CampaignService::class)->refreshProgress($recipient->campaign);
+            }
         }
     }
 }

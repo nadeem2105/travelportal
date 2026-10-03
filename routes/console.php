@@ -105,10 +105,20 @@ Artisan::command('whatsapp:dispatch-campaigns', function () {
     $this->info("Dispatched {$count} due WhatsApp campaign(s).");
 })->purpose('Dispatch scheduled WhatsApp campaigns that are due');
 
+/*
+ * Reconcile any WhatsApp campaigns stuck in 'sending' status (stale jobs, dead workers).
+ */
+Artisan::command('whatsapp:reconcile-campaigns {--stale=30 : Minutes before an unmoving campaign is considered stale}', function () {
+    $staleMinutes = (int) $this->option('stale');
+    $count = app(\App\Services\WhatsApp\CampaignService::class)->reconcileStuckCampaigns($staleMinutes);
+    $this->info("Reconciled {$count} stuck WhatsApp campaign(s).");
+})->purpose('Reconcile stuck WhatsApp campaigns and auto-close completed or abandoned sends');
+
 Schedule::command('bookings:expire-pending')->everyFiveMinutes();
 Schedule::command('bookings:reconcile-failed')->everyTenMinutes();
 Schedule::command('searches:prune')->daily();
 Schedule::command('whatsapp:dispatch-campaigns')->everyMinute();
+Schedule::command('whatsapp:reconcile-campaigns')->everyTenMinutes();
 
 /*
  * Fire time-based ("no activity for N days") automation workflows. Runs the

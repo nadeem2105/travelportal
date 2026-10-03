@@ -194,6 +194,8 @@ Route::middleware('admin.auth')->prefix('admin')->name('admin.')->group(function
     Route::post('whatsapp-campaigns/{whatsappCampaign}/send', [Admin\WhatsAppCampaignController::class, 'sendNow'])->middleware('admin.permission:manage_crm')->name('whatsapp-campaigns.send');
     Route::post('whatsapp-campaigns/{whatsappCampaign}/schedule', [Admin\WhatsAppCampaignController::class, 'schedule'])->middleware('admin.permission:manage_crm')->name('whatsapp-campaigns.schedule');
     Route::post('whatsapp-campaigns/{whatsappCampaign}/cancel', [Admin\WhatsAppCampaignController::class, 'cancel'])->middleware('admin.permission:manage_crm')->name('whatsapp-campaigns.cancel');
+    Route::post('whatsapp-campaigns/{whatsappCampaign}/refresh', [Admin\WhatsAppCampaignController::class, 'refresh'])->middleware('admin.permission:manage_crm')->name('whatsapp-campaigns.refresh');
+    Route::post('whatsapp-campaigns/{whatsappCampaign}/retry', [Admin\WhatsAppCampaignController::class, 'retry'])->middleware('admin.permission:manage_crm')->name('whatsapp-campaigns.retry');
 
     // WhatsApp Auto-replies (keyword chatbot)
     Route::get('whatsapp-auto-replies', [Admin\WhatsAppAutoReplyController::class, 'index'])->middleware('admin.permission:manage_crm')->name('whatsapp-auto-replies.index');

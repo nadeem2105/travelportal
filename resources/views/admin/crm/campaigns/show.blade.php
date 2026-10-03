@@ -34,6 +34,18 @@
                 <button class="btn-primary btn-sm">Send Now ({{ $estimated }})</button>
             </form>
         @endif
+        @if ($c->status === 'sending')
+            <form action="{{ route('admin.whatsapp-campaigns.refresh', $c) }}" method="POST">
+                @csrf
+                <button class="btn-secondary btn-sm" title="Recheck recipient statuses and progress">Refresh Progress</button>
+            </form>
+        @endif
+        @if (in_array($c->status, ['sending', 'failed', 'completed'], true) && ($c->failed_count > 0 || $recipients->where('status', 'pending')->count() > 0))
+            <form action="{{ route('admin.whatsapp-campaigns.retry', $c) }}" method="POST" onsubmit="return confirm('Retry delivery for pending or failed recipients?');">
+                @csrf
+                <button class="btn-secondary btn-sm text-brand-700" title="Re-queue failed or pending recipients">Retry Failed / Stuck</button>
+            </form>
+        @endif
         @if (in_array($c->status, ['draft','scheduled','sending'], true))
             <form action="{{ route('admin.whatsapp-campaigns.cancel', $c) }}" method="POST" onsubmit="return confirm('Cancel this campaign?');">
                 @csrf
@@ -45,6 +57,13 @@
 
 @if (session('success'))<div class="mt-3 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{{ session('success') }}</div>@endif
 @if (session('error'))<div class="mt-3 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700">{{ session('error') }}</div>@endif
+
+@if ($c->status === 'sending')
+    <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+        <strong>Dispatching:</strong> Campaign messages are queued for rate-limited delivery. If progress is not moving, ensure your background worker is running:
+        <code class="ml-1 rounded bg-amber-100 px-1.5 py-0.5 font-mono font-semibold">php artisan queue:work --queue=whatsapp,default</code>
+    </div>
+@endif
 
 {{-- Progress counters --}}
 <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">

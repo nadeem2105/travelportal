@@ -63,16 +63,20 @@ class CampaignService
 
         $campaign->update(['status' => 'sending', 'started_at' => now(), 'scheduled_at' => null]);
 
+        $queueName = config('services.whatsapp.campaign_queue', 'whatsapp');
         $delay = 0;
+        $pendingCount = 0;
+
         foreach ($campaign->recipients()->where('status', 'pending')->get() as $recipient) {
             SendWhatsAppCampaignMessage::dispatch($recipient->id)
-                ->onQueue('whatsapp')
+                ->onQueue($queueName)
                 ->delay(now()->addSeconds($delay));
             $delay += self::SEND_SPACING_SECONDS;
+            $pendingCount++;
         }
 
-        // Empty campaign — nothing to send.
-        if ($campaign->total_recipients === 0) {
+        // Empty campaign or no reachable recipients — nothing to send.
+        if ($campaign->total_recipients === 0 || $pendingCount === 0) {
             $campaign->update(['status' => 'completed', 'completed_at' => now()]);
         }
     }
@@ -81,6 +85,46 @@ class CampaignService
     public function schedule(WhatsAppCampaign $campaign, \DateTimeInterface $when): void
     {
         $campaign->update(['status' => 'scheduled', 'scheduled_at' => $when]);
+    }
+
+    /** Cancel a campaign and mark any un-sent recipients as skipped. */
+    public function cancel(WhatsAppCampaign $campaign): void
+    {
+        if (in_array($campaign->status, ['completed', 'cancelled'], true)) {
+            return;
+        }
+
+        $campaign->recipients()->where('status', 'pending')->update([
+            'status' => 'skipped',
+            'error' => 'Campaign cancelled by admin',
+        ]);
+
+        $this->refreshProgress($campaign);
+        $campaign->update(['status' => 'cancelled']);
+    }
+
+    /** Re-dispatch failed or stuck pending recipients for a campaign. */
+    public function retryPendingOrFailed(WhatsAppCampaign $campaign): int
+    {
+        $recipients = $campaign->recipients()->whereIn('status', ['pending', 'failed'])->get();
+        if ($recipients->isEmpty()) {
+            return 0;
+        }
+
+        $campaign->update(['status' => 'sending', 'completed_at' => null]);
+
+        $queueName = config('services.whatsapp.campaign_queue', 'whatsapp');
+        $delay = 0;
+
+        foreach ($recipients as $recipient) {
+            $recipient->update(['status' => 'pending', 'error' => null]);
+            SendWhatsAppCampaignMessage::dispatch($recipient->id)
+                ->onQueue($queueName)
+                ->delay(now()->addSeconds($delay));
+            $delay += self::SEND_SPACING_SECONDS;
+        }
+
+        return $recipients->count();
     }
 
     /** Dispatch any scheduled campaigns whose time has come (called by the scheduler). */
@@ -107,17 +151,56 @@ class CampaignService
             ->pluck('c', 'status');
 
         $sent = ($counts['sent'] ?? 0) + ($counts['delivered'] ?? 0) + ($counts['read'] ?? 0);
+        $failed = $counts['failed'] ?? 0;
         $pending = $counts['pending'] ?? 0;
 
         $campaign->update([
             'sent_count' => $sent,
             'delivered_count' => ($counts['delivered'] ?? 0) + ($counts['read'] ?? 0),
             'read_count' => $counts['read'] ?? 0,
-            'failed_count' => $counts['failed'] ?? 0,
+            'failed_count' => $failed,
         ]);
 
         if ($pending === 0 && $campaign->status === 'sending') {
-            $campaign->update(['status' => 'completed', 'completed_at' => now()]);
+            $finalStatus = ($sent > 0 || $campaign->total_recipients === 0) ? 'completed' : 'failed';
+            $campaign->update(['status' => $finalStatus, 'completed_at' => now()]);
         }
+    }
+
+    /**
+     * Inspect and reconcile any campaigns stuck in 'sending'.
+     * Recalculates progress, and marks stale pending recipients (staleMinutes) as failed.
+     */
+    public function reconcileStuckCampaigns(int $staleMinutes = 30): int
+    {
+        $sending = WhatsAppCampaign::where('status', 'sending')->get();
+        $reconciled = 0;
+
+        foreach ($sending as $campaign) {
+            $this->refreshProgress($campaign);
+            $campaign->refresh();
+
+            if ($campaign->status !== 'sending') {
+                $reconciled++;
+                continue;
+            }
+
+            // If campaign has been sending for longer than stale threshold, check for stuck recipients
+            if ($campaign->started_at && $campaign->started_at->lt(now()->subMinutes($staleMinutes))) {
+                $updated = $campaign->recipients()
+                    ->where('status', 'pending')
+                    ->update([
+                        'status' => 'failed',
+                        'error' => 'Job timed out or queue worker was interrupted during dispatch',
+                    ]);
+
+                if ($updated > 0) {
+                    $this->refreshProgress($campaign);
+                    $reconciled++;
+                }
+            }
+        }
+
+        return $reconciled;
     }
 }
